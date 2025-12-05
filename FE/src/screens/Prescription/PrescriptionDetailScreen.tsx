@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   useWindowDimensions,
   Alert,
   ActivityIndicator,
+  InteractionManager,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -72,13 +73,17 @@ export default function PrescriptionDetailScreen({ umno, onGoHome, onEditTime }:
 
   const [prescriptionData, setPrescriptionData] = useState<PrescriptionData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isInteractionComplete, setIsInteractionComplete] = useState(false);
   const [playingTtsMdno, setPlayingTtsMdno] = useState<number | null>(null); // 현재 재생 중인 약품의 mdno
+  const isTtsPlayingRef = useRef(false); // TTS 재생 중 플래그 (중복 실행 방지)
+  const SCREEN_ID = 'PrescriptionDetailScreen';
   
   // 컴포넌트 언마운트 시 TTS 종료 (추가 안전장치)
   useEffect(() => {
     return () => {
       console.log('[PrescriptionDetailScreen] 컴포넌트 언마운트 - TTS 종료');
-      stopAudio();
+      isTtsPlayingRef.current = false;
+      stopAudio(SCREEN_ID);
       setPlayingTtsMdno(null);
     };
   }, []);
@@ -93,9 +98,18 @@ export default function PrescriptionDetailScreen({ umno, onGoHome, onEditTime }:
 
   // 복약 상세 정보 조회
   useEffect(() => {
+    // umno가 유효하지 않으면 조기 리턴
+    if (!umno || umno === 0) {
+      console.warn('[PrescriptionDetailScreen] ⚠️ 유효하지 않은 umno:', umno);
+      setIsLoading(false);
+      setPrescriptionData(null);
+      return;
+    }
+    
     const loadMedicationDetail = async () => {
       try {
         setIsLoading(true);
+        console.log('[PrescriptionDetailScreen] 복약 상세 정보 조회 시작, umno:', umno);
         const response = await getMedicationDetail(umno);
         console.log('=== 복약 상세 정보 응답 ===');
         console.log('응답 상태:', response.header?.resultCode);
@@ -203,38 +217,111 @@ export default function PrescriptionDetailScreen({ umno, onGoHome, onEditTime }:
     loadMedicationDetail();
   }, [umno]);
 
+  // 화면 전환 애니메이션 완료 후 실행
+  useEffect(() => {
+    const interactionPromise = InteractionManager.runAfterInteractions(() => {
+      setIsInteractionComplete(true);
+      console.log('[PrescriptionDetailScreen] 화면 전환 애니메이션 완료');
+    });
+
+    return () => interactionPromise.cancel();
+  }, []);
+
   // 화면이 켜지면 모든 약품의 TTS를 순차적으로 재생
   useEffect(() => {
-    if (prescriptionData && prescriptionData.medicines && prescriptionData.medicines.length > 0) {
+    console.log('[PrescriptionDetailScreen] TTS 재생 useEffect 실행');
+    console.log('  - umno:', umno);
+    console.log('  - isLoading:', isLoading);
+    console.log('  - isInteractionComplete:', isInteractionComplete);
+    console.log('  - prescriptionData 존재:', !!prescriptionData);
+    console.log('  - prescriptionData.medicines 존재:', !!prescriptionData?.medicines);
+    console.log('  - 약품 개수:', prescriptionData?.medicines?.length || 0);
+    console.log('  - isTtsPlayingRef.current:', isTtsPlayingRef.current);
+    
+    // umno가 유효하지 않으면 TTS 재생하지 않음
+    if (!umno || umno === 0) {
+      console.warn('[PrescriptionDetailScreen] ⚠️ umno가 유효하지 않아 TTS 재생하지 않음');
+      return;
+    }
+    
+    // 로딩이 완료되고, 데이터가 있고, 화면 전환 애니메이션이 완료된 후에만 TTS 재생
+    if (!isLoading && isInteractionComplete && prescriptionData && prescriptionData.medicines && prescriptionData.medicines.length > 0) {
       const audioUrls = prescriptionData.medicines
         .map(med => med.audioUrl)
         .filter((url): url is string => !!url && url.trim().length > 0);
       
+      console.log('[PrescriptionDetailScreen] ✅ TTS 재생 조건 충족');
+      console.log('  - 약품 개수:', prescriptionData.medicines.length);
+      console.log('  - audioUrl 개수:', audioUrls.length);
+      console.log('  - 약품별 audioUrl:', prescriptionData.medicines.map(m => ({ 
+        name: m.name, 
+        audioUrl: m.audioUrl ? `${m.audioUrl.substring(0, 50)}...` : '없음' 
+      })));
+      
       if (audioUrls.length > 0) {
-        console.log(`[PrescriptionDetailScreen] ${audioUrls.length}개의 약품 TTS 순차 재생 시작`);
-        playSequentialAudio(audioUrls)
-          .then(() => {
-            console.log('[PrescriptionDetailScreen] 모든 약품 TTS 재생 완료');
+        // 중복 실행 방지
+        if (isTtsPlayingRef.current) {
+          console.warn('[PrescriptionDetailScreen] ⚠️ TTS가 이미 재생 중입니다. 중복 실행 방지');
+          return;
+        }
+        
+        // cleanup 함수가 실행되지 않도록 플래그 설정
+        isTtsPlayingRef.current = true;
+        console.log(`[PrescriptionDetailScreen] 🎵 ${audioUrls.length}개의 약품 TTS 순차 재생 시작`);
+        
+        // 비동기 함수로 실행하여 cleanup과의 경쟁 조건 방지
+        const playTts = async () => {
+          try {
+            await playSequentialAudio(audioUrls, SCREEN_ID);
+            console.log('[PrescriptionDetailScreen] ✅ 모든 약품 TTS 재생 완료');
+          } catch (error) {
+            console.error('[PrescriptionDetailScreen] ❌ TTS 순차 재생 실패:', error);
+            console.error('에러 상세:', error.message, error.stack);
+          } finally {
+            // 재생이 완료되거나 실패한 후에만 플래그 해제
+            isTtsPlayingRef.current = false;
             setPlayingTtsMdno(null);
-          })
-          .catch(error => {
-            console.error('[PrescriptionDetailScreen] TTS 순차 재생 실패:', error);
-            setPlayingTtsMdno(null);
-          });
+          }
+        };
+        
+        // 즉시 실행 (await 없이)
+        playTts();
+      } else {
+        console.warn('[PrescriptionDetailScreen] ⚠️ TTS 재생할 audioUrl이 없습니다.');
+        console.log('약품 목록 (상세):', prescriptionData.medicines.map(m => ({ 
+          name: m.name, 
+          audioUrl: m.audioUrl || 'null',
+          audioUrlLength: m.audioUrl?.length || 0
+        })));
       }
+    } else {
+      console.log('[PrescriptionDetailScreen] ⏸️ TTS 재생 조건 미충족:');
+      console.log('  - isLoading:', isLoading);
+      console.log('  - isInteractionComplete:', isInteractionComplete);
+      console.log('  - prescriptionData 존재:', !!prescriptionData);
+      console.log('  - prescriptionData.medicines 존재:', !!prescriptionData?.medicines);
+      console.log('  - 약품 개수:', prescriptionData?.medicines?.length || 0);
     }
 
     // 화면을 벗어나면 TTS 종료 (useEffect cleanup)
+    // 주의: prescriptionData가 변경되어도 cleanup이 실행되므로, 실제로 재생 중일 때만 중지
     return () => {
-      console.log('[PrescriptionDetailScreen] useEffect cleanup - TTS 종료');
-      stopAudio();
-      setPlayingTtsMdno(null);
+      // TTS가 실제로 재생 중일 때만 중지
+      if (isTtsPlayingRef.current) {
+        console.log('[PrescriptionDetailScreen] useEffect cleanup - TTS 종료');
+        isTtsPlayingRef.current = false;
+        stopAudio(SCREEN_ID);
+        setPlayingTtsMdno(null);
+      }
     };
-  }, [prescriptionData]);
+    // dependency 최적화: prescriptionData 객체 참조 대신 medicines 배열의 길이와 첫 번째 약품의 audioUrl만 확인
+    // 이렇게 하면 prescriptionData 객체가 재생성되어도 medicines가 같으면 재실행되지 않음
+  }, [isLoading, isInteractionComplete, prescriptionData?.medicines?.length, prescriptionData?.medicines?.[0]?.audioUrl]);
 
   const handleGoHome = () => {
     console.log('[PrescriptionDetailScreen] 홈으로 이동 - TTS 종료');
-    stopAudio();
+    isTtsPlayingRef.current = false;
+    stopAudio(SCREEN_ID);
     setPlayingTtsMdno(null);
     onGoHome?.();
   };
@@ -396,13 +483,15 @@ export default function PrescriptionDetailScreen({ umno, onGoHome, onEditTime }:
                   {/* 약 설명 */}
                   {medicine.description && (
                     <View style={styles.descriptionSection}>
-                      {/* TTS 재생 버튼 - 우상단 구석 */}
+                      <Text style={styles.descriptionText}>{medicine.description}</Text>
+                      {/* TTS 재생 버튼 - 설명 오른쪽 상단 */}
                       {medicine.audioUrl && (
                         <TouchableOpacity
                           style={[
                             styles.ttsButton,
                             playingTtsMdno === medicine.mdno && styles.ttsButtonPlaying
                           ]}
+                          activeOpacity={0.7}
                           onPress={async () => {
                             // 다른 TTS가 재생 중이면 무조건 중지 (다른 약품이거나 순차 재생 중)
                             // playBase64Audio 내부에서 자동으로 이전 TTS를 종료하지만,
@@ -424,11 +513,10 @@ export default function PrescriptionDetailScreen({ umno, onGoHome, onEditTime }:
                           }}
                         >
                           <Text style={styles.ttsButtonText}>
-                            {playingTtsMdno === medicine.mdno ? '🔊' : '🔊'}
+                            {playingTtsMdno === medicine.mdno ? '⏸️' : '🔊'}
                           </Text>
                         </TouchableOpacity>
                       )}
-                      <Text style={styles.descriptionText}>{medicine.description}</Text>
                     </View>
                   )}
                 </View>
@@ -623,20 +711,26 @@ const styles = StyleSheet.create({
     position: 'absolute' as any,
     top: responsive(8),
     right: responsive(8),
-    width: responsive(20),
-    height: responsive(20),
-    borderRadius: responsive(10),
-    backgroundColor: '#60584D',
+    width: responsive(48),
+    height: responsive(48),
+    borderRadius: responsive(24),
+    backgroundColor: '#FFCC02',
     alignItems: 'center' as any,
     justifyContent: 'center' as any,
-    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: responsive(2),
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: responsive(4),
+    elevation: 4,
   },
   ttsButtonPlaying: {
-    backgroundColor: '#8B8268',
+    backgroundColor: '#FFD700',
   },
   ttsButtonText: {
-    fontSize: responsive(12),
-    color: '#FFFFFF',
+    fontSize: responsive(28),
   },
   descriptionSection: {
     backgroundColor: '#F9FAFB',
@@ -650,7 +744,7 @@ const styles = StyleSheet.create({
     fontWeight: '400' as any,
     color: '#364153',
     lineHeight: responsive(20),
-    paddingRight: responsive(32), // 스피커 버튼 공간 확보 (버튼 너비 20 + 여백 12)
+    paddingRight: responsive(64), // 스피커 버튼 공간 확보 (버튼 너비 48 + 여백 16)
   },
   warningSection: {
     backgroundColor: '#FFF9E6',

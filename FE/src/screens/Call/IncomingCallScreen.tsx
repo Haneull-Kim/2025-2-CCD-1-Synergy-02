@@ -42,31 +42,68 @@ export const IncomingCallScreen = React.memo(({
         
         console.log(`[IncomingCallScreen] 배경음악 재생 시작: music${musicNumber}.mp3`);
         
-        // 오디오 모드 설정 (다른 오디오와 함께 재생 가능하도록)
-        await Audio.setAudioModeAsync({
-          // IOS
-          playsInSilentModeIOS: true,
-          // Android
-          staysActiveInBackground: false,
-          playThroughEarpieceAndroid: false,
-        });
-        
-        // 오디오 로드 및 재생
-        const { sound: audioSound } = await Audio.Sound.createAsync(
-          musicSource,
-          { 
-            shouldPlay: true,
-            isLooping: true, // 반복 재생
-            volume: 0.5, // 볼륨 50%
+        // 오디오 모드 설정 (재시도 로직 포함)
+        let audioModeSet = false;
+        for (let retry = 0; retry < 3 && !audioModeSet; retry++) {
+          try {
+            await Audio.setAudioModeAsync({
+              // IOS
+              playsInSilentModeIOS: true,
+              // Android
+              staysActiveInBackground: false,
+              playThroughEarpieceAndroid: false,
+              shouldDuckAndroid: true, // TTS와 함께 재생 가능하도록
+            });
+            audioModeSet = true;
+          } catch (error) {
+            console.warn(`[IncomingCallScreen] 오디오 모드 설정 실패 (시도 ${retry + 1}/3):`, error);
+            if (retry < 2) {
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
           }
-        );
+        }
         
-        if (isMounted) {
+        // 오디오 로드 및 재생 (재시도 로직 포함)
+        let audioSound: Audio.Sound | null = null;
+        for (let retry = 0; retry < 3 && !audioSound; retry++) {
+          try {
+            const result = await Audio.Sound.createAsync(
+              musicSource,
+              { 
+                shouldPlay: true,
+                isLooping: true, // 반복 재생
+                volume: 0.5, // 볼륨 50%
+              }
+            );
+            audioSound = result.sound;
+            
+            // 재생 상태 확인
+            const status = await audioSound.getStatusAsync();
+            if (!status.isLoaded) {
+              console.warn('[IncomingCallScreen] 배경음악 로드 실패, 재시도...');
+              await audioSound.unloadAsync();
+              audioSound = null;
+              if (retry < 2) {
+                await new Promise(resolve => setTimeout(resolve, 200));
+              }
+              continue;
+            }
+          } catch (error) {
+            console.error(`[IncomingCallScreen] 배경음악 재생 실패 (시도 ${retry + 1}/3):`, error);
+            if (retry < 2) {
+              await new Promise(resolve => setTimeout(resolve, 200));
+            }
+          }
+        }
+        
+        if (audioSound && isMounted) {
           soundRef.current = audioSound;
           console.log('[IncomingCallScreen] 배경음악 재생 성공');
-        } else {
+        } else if (audioSound) {
           // 컴포넌트가 언마운트된 경우 즉시 정리
-          audioSound.unloadAsync();
+          audioSound.unloadAsync().catch(console.error);
+        } else {
+          console.error('[IncomingCallScreen] 배경음악 재생 실패 - 모든 재시도 실패');
         }
       } catch (error) {
         console.error('[IncomingCallScreen] 배경음악 재생 실패:', error);

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   InteractionManager,
   ActivityIndicator,
   Alert,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -24,9 +25,10 @@ interface IntakeAlarmQuizScreenProps {
   initialWrongCount?: number; // 전화에서 돌아왔을 때 3번 틀린 상태 유지
   eno?: number; // 이벤트 번호
   eventDetail?: any;
+  onBack?: () => void; // 뒤로가기 버튼 클릭 시 호출 (홈으로 이동)
 }
 
-const IntakeAlarmQuizScreen = React.memo(({ onMedicationTaken, onThreeTimesWrong, initialWrongCount = 0, eno, eventDetail }: IntakeAlarmQuizScreenProps) => {
+const IntakeAlarmQuizScreen = React.memo(({ onMedicationTaken, onThreeTimesWrong, initialWrongCount = 0, eno, eventDetail, onBack }: IntakeAlarmQuizScreenProps) => {
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [isWrong, setIsWrong] = useState(initialWrongCount >= 3);
   const [isCorrect, setIsCorrect] = useState(false);
@@ -40,6 +42,8 @@ const IntakeAlarmQuizScreen = React.memo(({ onMedicationTaken, onThreeTimesWrong
   const { width } = useWindowDimensions();
   const isTablet = width > 600;
   const MAX_WIDTH = responsive(isTablet ? 420 : 360);
+  const isMountedRef = useRef(true);
+  const SCREEN_ID = 'IntakeAlarmQuizScreen';
 
   // 이벤트 데이터 로드
   useEffect(() => {
@@ -153,6 +157,12 @@ const IntakeAlarmQuizScreen = React.memo(({ onMedicationTaken, onThreeTimesWrong
   useEffect(() => {
     if (!isLoading && eventData && isInteractionComplete) {
       const playTTS = async () => {
+        // 화면이 여전히 마운트되어 있는지 확인
+        if (!isMountedRef.current) {
+          console.log('[IntakeAlarmQuizScreen] 화면 언마운트 감지, TTS 재생 취소');
+          return;
+        }
+
         try {
           // eventData에 audioUrl 또는 audio_url이 있으면 사용, 없으면 getAIScript로 가져오기
           let audioUrl: string | null = null;
@@ -166,6 +176,13 @@ const IntakeAlarmQuizScreen = React.memo(({ onMedicationTaken, onThreeTimesWrong
             // audio_url이 없으면 getAIScript로 가져오기
             try {
               const scriptResponse = await getAIScript(eventData.umno);
+              
+              // API 응답 후에도 화면이 여전히 마운트되어 있는지 확인
+              if (!isMountedRef.current) {
+                console.log('[IntakeAlarmQuizScreen] API 응답 후 화면 언마운트 감지, TTS 재생 취소');
+                return;
+              }
+              
               if (scriptResponse.header?.resultCode === 1000 && scriptResponse.body?.audio_url) {
                 audioUrl = scriptResponse.body.audio_url;
               }
@@ -174,8 +191,14 @@ const IntakeAlarmQuizScreen = React.memo(({ onMedicationTaken, onThreeTimesWrong
             }
           }
           
+          // 재생 전 다시 한 번 확인
+          if (!isMountedRef.current) {
+            console.log('[IntakeAlarmQuizScreen] 재생 전 화면 언마운트 감지, TTS 재생 취소');
+            return;
+          }
+          
           if (audioUrl) {
-            await playBase64Audio(audioUrl);
+            await playBase64Audio(audioUrl, undefined, SCREEN_ID, isMountedRef);
           }
         } catch (error) {
           console.error('[IntakeAlarmQuizScreen] TTS 재생 실패:', error);
@@ -184,13 +207,15 @@ const IntakeAlarmQuizScreen = React.memo(({ onMedicationTaken, onThreeTimesWrong
       
       // 약간의 지연 후 TTS 재생 (화면 렌더링 완료 후)
       const timer = setTimeout(() => {
-        playTTS();
+        if (isMountedRef.current) {
+          playTTS();
+        }
       }, 500);
       
       return () => {
         clearTimeout(timer);
         // 화면을 이탈할 때만 TTS 종료
-        stopAudio();
+        stopAudio(SCREEN_ID);
       };
     }
   }, [isLoading, eventData, isInteractionComplete]);
@@ -198,9 +223,23 @@ const IntakeAlarmQuizScreen = React.memo(({ onMedicationTaken, onThreeTimesWrong
   // 컴포넌트 언마운트 시 TTS 종료 (화면을 벗어날 때)
   useEffect(() => {
     return () => {
-      stopAudio();
+      isMountedRef.current = false;
+      stopAudio(SCREEN_ID);
     };
   }, []);
+
+  // 뒤로가기 버튼 처리 (알림 화면에서 뒤로가기 누르면 홈으로 이동)
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      console.log('[IntakeAlarmQuizScreen] 뒤로가기 버튼 클릭 - 홈으로 이동');
+      if (onBack) {
+        onBack();
+      }
+      return true; // 기본 동작 방지 (앱 종료 방지)
+    });
+
+    return () => backHandler.remove();
+  }, [onBack]);
 
   const handleSelectAnswer = useCallback((answerId: string) => {
     if (!correctAnswerId) return;
