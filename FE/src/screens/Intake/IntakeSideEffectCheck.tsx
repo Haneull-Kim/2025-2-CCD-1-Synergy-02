@@ -293,7 +293,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: responsive(16),
     paddingTop: responsive(48),
-    paddingBottom: responsive(100),
+    paddingBottom: responsive(120), // 버튼 높이 + 여백
     alignItems: 'center' as any,
     flexGrow: 1,
   },
@@ -320,12 +320,12 @@ const styles = StyleSheet.create({
     paddingVertical: responsive(12),
   },
   effectButtonSelected: {
-    backgroundColor: '#60584d',
-    borderColor: '#60584d',
+    backgroundColor: '#FFCC02', // 노란색으로 변경
+    borderColor: '#FFCC02',
   },
   effectButtonUnselected: {
     backgroundColor: '#ffffff',
-    borderColor: '#ffcc02',
+    borderColor: '#60584d', // 갈색으로 변경
   },
   iconCircle: {
     width: responsive(70),
@@ -361,14 +361,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   effectButtonTextSelected: {
-    color: '#ffffff',
+    color: '#545045', // 노란색 배경에 맞춰 갈색으로 변경
   },
   buttonContainer: {
     position: 'absolute' as any,
     left: responsive(16),
     right: responsive(16),
-    bottom: responsive(36),
+    bottom: 0, // SafeAreaView의 bottom edge 사용
+    paddingBottom: responsive(20), // 하단 여백
     alignItems: 'center' as any,
+    backgroundColor: '#f9fafb', // 배경색 추가로 스크롤 시 버튼이 보이도록
   },
   nextButton: {
     width: '100%',
@@ -379,7 +381,7 @@ const styles = StyleSheet.create({
     alignItems: 'center' as any,
   },
   nextButtonActive: {
-    backgroundColor: '#60584d',
+    backgroundColor: '#FFCC02', // 노란색으로 변경
   },
   nextButtonInactive: {
     backgroundColor: '#c4bcb1',
@@ -390,7 +392,7 @@ const styles = StyleSheet.create({
     lineHeight: responsive(32.4),
   },
   nextButtonTextActive: {
-    color: '#ffffff',
+    color: '#545045', // 노란색 배경에 맞춰 갈색으로 변경
   },
   nextButtonTextInactive: {
     color: '#ffffff',

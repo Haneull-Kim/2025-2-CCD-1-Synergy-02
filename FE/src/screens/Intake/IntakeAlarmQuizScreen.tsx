@@ -328,11 +328,12 @@ const IntakeAlarmQuizScreen = React.memo(({ onMedicationTaken, onThreeTimesWrong
   }, [isCorrect, isSubmitting, eventData, onMedicationTaken]);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
       <StatusBar barStyle="dark-content" />
       <PinchZoomScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        style={styles.scrollView}
       >
         {isLoading ? (
           <View style={styles.loadingContainer}>
@@ -496,9 +497,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
+  scrollView: {
+    flex: 1,
+  },
   scrollContent: {
     paddingHorizontal: responsive(16),
-    paddingBottom: responsive(100),
+    paddingBottom: responsive(120), // 버튼 높이 + 여백
     alignItems: 'center' as any,
   },
   pageWrapper: {
@@ -620,7 +624,7 @@ const styles = StyleSheet.create({
   answerButton: {
     width: '48%',
     minHeight: responsive(56),
-    backgroundColor: '#FFCC02',
+    backgroundColor: '#60584D', // 갈색으로 변경
     borderRadius: responsive(108),
     justifyContent: 'center' as any,
     alignItems: 'stretch' as any,
@@ -628,7 +632,7 @@ const styles = StyleSheet.create({
     paddingVertical: responsive(10),
   },
   answerButtonSelected: {
-    backgroundColor: '#60584D',
+    backgroundColor: '#FFCC02', // 노란색으로 변경
   },
   answerButtonTextContainer: {
     width: '100%',
@@ -640,7 +644,7 @@ const styles = StyleSheet.create({
   answerButtonText: {
     fontWeight: '700' as '700',
     fontSize: responsive(24),
-    color: '#5E5B50',
+    color: '#FFFFFF', // 갈색 배경에 맞춰 흰색으로 변경
     lineHeight: responsive(28.8),
     textAlign: 'center' as any,
     includeFontPadding: false,
@@ -648,14 +652,16 @@ const styles = StyleSheet.create({
     alignSelf: 'center' as any,
   },
   answerButtonTextSelected: {
-    color: '#FFFFFF',
+    color: '#545045', // 노란색 배경에 맞춰 갈색으로 변경
   },
   submitButtonContainer: {
     position: 'absolute',
     left: responsive(16),
     right: responsive(16),
-    bottom: responsive(36),
+    bottom: 0, // SafeAreaView의 bottom edge 사용
+    paddingBottom: responsive(20), // 하단 여백
     alignItems: 'center' as any,
+    backgroundColor: '#F9FAFB', // 배경색 추가로 스크롤 시 버튼이 보이도록
   },
   submitButton: {
     width: '100%',
@@ -666,7 +672,7 @@ const styles = StyleSheet.create({
     alignItems: 'center' as any,
   },
   submitButtonActive: {
-    backgroundColor: '#60584d',
+    backgroundColor: '#FFCC02', // 노란색으로 변경
   },
   submitButtonInactive: {
     backgroundColor: '#C4BCB1',
@@ -674,7 +680,7 @@ const styles = StyleSheet.create({
   submitButtonText: {
     fontWeight: '700' as '700',
     fontSize: responsive(27),
-    color: '#FFFFFF',
+    color: '#545045', // 노란색 배경에 맞춰 갈색으로 변경
     lineHeight: responsive(32.4),
   },
   // 정답 UI 스타일
