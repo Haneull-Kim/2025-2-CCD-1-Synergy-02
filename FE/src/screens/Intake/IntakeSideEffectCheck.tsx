@@ -320,12 +320,12 @@ const styles = StyleSheet.create({
     paddingVertical: responsive(12),
   },
   effectButtonSelected: {
-    backgroundColor: '#FFCC02', // 노란색으로 변경
-    borderColor: '#FFCC02',
+    backgroundColor: '#60584d', // 원래 갈색으로 복원
+    borderColor: '#60584d',
   },
   effectButtonUnselected: {
     backgroundColor: '#ffffff',
-    borderColor: '#60584d', // 갈색으로 변경
+    borderColor: '#ffcc02', // 원래 노란색으로 복원
   },
   iconCircle: {
     width: responsive(70),
@@ -361,7 +361,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   effectButtonTextSelected: {
-    color: '#545045', // 노란색 배경에 맞춰 갈색으로 변경
+    color: '#ffffff', // 원래 흰색으로 복원
   },
   buttonContainer: {
     position: 'absolute' as any,
@@ -381,7 +381,7 @@ const styles = StyleSheet.create({
     alignItems: 'center' as any,
   },
   nextButtonActive: {
-    backgroundColor: '#FFCC02', // 노란색으로 변경
+    backgroundColor: '#60584d', // 원래 갈색으로 복원
   },
   nextButtonInactive: {
     backgroundColor: '#c4bcb1',
@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
     lineHeight: responsive(32.4),
   },
   nextButtonTextActive: {
-    color: '#545045', // 노란색 배경에 맞춰 갈색으로 변경
+    color: '#ffffff', // 원래 흰색으로 복원
   },
   nextButtonTextInactive: {
     color: '#ffffff',

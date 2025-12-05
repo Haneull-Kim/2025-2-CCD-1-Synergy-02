@@ -624,7 +624,7 @@ const styles = StyleSheet.create({
   answerButton: {
     width: '48%',
     minHeight: responsive(56),
-    backgroundColor: '#60584D', // 갈색으로 변경
+    backgroundColor: '#FFCC02', // 원래 노란색으로 복원
     borderRadius: responsive(108),
     justifyContent: 'center' as any,
     alignItems: 'stretch' as any,
@@ -632,7 +632,7 @@ const styles = StyleSheet.create({
     paddingVertical: responsive(10),
   },
   answerButtonSelected: {
-    backgroundColor: '#FFCC02', // 노란색으로 변경
+    backgroundColor: '#60584D', // 원래 갈색으로 복원
   },
   answerButtonTextContainer: {
     width: '100%',
@@ -644,7 +644,7 @@ const styles = StyleSheet.create({
   answerButtonText: {
     fontWeight: '700' as '700',
     fontSize: responsive(24),
-    color: '#FFFFFF', // 갈색 배경에 맞춰 흰색으로 변경
+    color: '#5E5B50', // 원래 갈색으로 복원
     lineHeight: responsive(28.8),
     textAlign: 'center' as any,
     includeFontPadding: false,
@@ -652,7 +652,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center' as any,
   },
   answerButtonTextSelected: {
-    color: '#545045', // 노란색 배경에 맞춰 갈색으로 변경
+    color: '#FFFFFF', // 원래 흰색으로 복원
   },
   submitButtonContainer: {
     position: 'absolute',
@@ -672,7 +672,7 @@ const styles = StyleSheet.create({
     alignItems: 'center' as any,
   },
   submitButtonActive: {
-    backgroundColor: '#FFCC02', // 노란색으로 변경
+    backgroundColor: '#60584d', // 원래 갈색으로 복원
   },
   submitButtonInactive: {
     backgroundColor: '#C4BCB1',
@@ -680,7 +680,7 @@ const styles = StyleSheet.create({
   submitButtonText: {
     fontWeight: '700' as '700',
     fontSize: responsive(27),
-    color: '#545045', // 노란색 배경에 맞춰 갈색으로 변경
+    color: '#FFFFFF', // 원래 흰색으로 복원
     lineHeight: responsive(32.4),
   },
   // 정답 UI 스타일
