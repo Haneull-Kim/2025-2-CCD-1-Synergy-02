@@ -61,7 +61,7 @@ public class ReportService {
         // 1) 해당 사용자의 모든 복약 정보 조회
         List<UserMedicineEntity> allMeds = userMedicineRepository.findAllByUser_Uno(uno);
         if (allMeds == null || allMeds.isEmpty()) {
-            throw new IllegalArgumentException("사용자의 복약 정보가 존재하지 않습니다.");
+            return new ReportListResponseDTO(new ArrayList<>());
         }
 
         // 2) 모든 umno 리스트 추출
