@@ -311,7 +311,7 @@ export default function PrescriptionIntakeTimeSelectScreen({
           disabled={!isNextButtonActive}
         >
           {isLoading ? (
-            <ActivityIndicator color="#ffffff" size="small" />
+            <ActivityIndicator color="#545045" size="small" />
           ) : (
             <Text style={styles.nextButtonText}>다음으로</Text>
           )}
@@ -368,10 +368,10 @@ const styles = StyleSheet.create({
     position: 'relative' as any,
   },
   timeButtonSelected: {
-    backgroundColor: '#60584d',
+    backgroundColor: '#ffcc02', // 노란색으로 변경
   },
   timeButtonUnselected: {
-    backgroundColor: '#ffcc02',
+    backgroundColor: '#60584d', // 갈색으로 변경
   },
   iconContainer: {
     width: responsive(35),
@@ -395,10 +395,10 @@ const styles = StyleSheet.create({
     lineHeight: responsive(57.6),
   },
   timeButtonTextSelected: {
-    color: '#ffffff',
+    color: '#545045', // 갈색으로 변경
   },
   timeButtonTextUnselected: {
-    color: '#545045',
+    color: '#ffffff', // 흰색으로 변경
   },
   buttonContainer: {
     position: 'absolute' as any,
@@ -415,7 +415,7 @@ const styles = StyleSheet.create({
     alignItems: 'center' as any,
   },
   nextButtonActive: {
-    backgroundColor: '#60584d',
+    backgroundColor: '#ffcc02', // 노란색으로 변경
   },
   nextButtonInactive: {
     backgroundColor: '#c4bcb1',
@@ -423,7 +423,7 @@ const styles = StyleSheet.create({
   nextButtonText: {
     fontSize: responsive(27),
     fontWeight: '700' as any,
-    color: '#ffffff',
+    color: '#545045', // 갈색으로 변경
     lineHeight: responsive(32.4),
   },
 });
