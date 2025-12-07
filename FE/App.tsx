@@ -8,6 +8,7 @@ import { getUserMedications } from './src/api/userApi';
 import { useAuthStore } from './src/stores/authStore';
 import messaging from '@react-native-firebase/messaging';
 import { scheduleDailyEvents } from './src/push/backgroundHandler';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // FCM 백그라운드 메시지 핸들러 등록 (앱 시작 시 자동 실행)
 import './src/push/backgroundHandler';
@@ -203,6 +204,8 @@ const sampleRecords: RecordItem[] = [
   },
 ];
 
+const PENDING_KEY = 'PENDING_ALARM_NOTIFICATION';
+
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenName>('SplashScreen');
   const [appIsReady, setAppIsReady] = useState(false);
@@ -289,18 +292,30 @@ export default function App() {
   // 5. 초기 실행 및 백그라운드 -> 포그라운드 전환 시 알림 체크
   useEffect(() => {
     
-    // 알림 확인하는 함수 (공통 로직)
     const checkNotification = async () => {
+      // 1) 앱이 알림 클릭으로 켜진 경우 처리
       const initialNotification = await notifee.getInitialNotification();
-      
       if (initialNotification) {
-        console.log('[App] 알림 데이터 발견:', initialNotification);
-        const data = initialNotification.notification.data;
-        
+        const data = initialNotification.notification?.data;
         if (data?.route === 'IntakeAlarmQuizScreen') {
-          // 딜레이 없이 바로 이동
+          handleNotificationRoute('IntakeAlarmQuizScreen', data);
+          await AsyncStorage.removeItem(PENDING_KEY);
+          return;
+        }
+      }
+
+      // 2) 백그라운드 이벤트에서 저장된 pending 알림 처리
+      const pendingRaw = await AsyncStorage.getItem(PENDING_KEY);
+      if (pendingRaw) {
+        const pending = JSON.parse(pendingRaw);
+        const data = pending.data;
+        console.log('[App] Pending notification found:', pending);
+
+        if (data?.route === 'IntakeAlarmQuizScreen') {
           handleNotificationRoute('IntakeAlarmQuizScreen', data);
         }
+
+        await AsyncStorage.removeItem(PENDING_KEY);
       }
     };
 
@@ -308,7 +323,7 @@ export default function App() {
     checkNotification();
 
     // 2) 앱이 백그라운드에서 깰 때 체크 (Resume)
-    const subscription = AppState.addEventListener('change', (nextAppState) => {
+    const subscription = AppState.addEventListener('change', (nextAppState:AppStateStatus) => {
       if (nextAppState === 'active') {
         console.log('[App] 앱이 포그라운드로 전환됨 -> 알림 체크 수행');
         checkNotification();
@@ -839,7 +854,7 @@ export default function App() {
   if (currentScreen !== 'Menu') {
     return (
       <SafeAreaProvider>
-      <View style={styles.container} onLayout={onLayoutRootView}>
+      <View key={currentScreen} style={styles.container} onLayout={onLayoutRootView}>
         <TouchableOpacity 
           style={styles.backButton}
           onPress={() => setCurrentScreen('Menu')}
