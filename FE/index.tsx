@@ -14,7 +14,10 @@ import App from './App';
 // 백그라운드 핸들러 등록
 import messaging from '@react-native-firebase/messaging';
 import notifee, { EventType } from '@notifee/react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage'; 
 import { scheduleDailyEvents } from './src/push/backgroundHandler';
+
+const PENDING_KEY = 'PENDING_ALARM_NOTIFICATION'; 
 
 // 1. FCM 백그라운드 메시지 핸들러 (앱이 꺼져있을 때 실행됨)
 messaging().setBackgroundMessageHandler(async remoteMessage => {
@@ -43,15 +46,35 @@ messaging().setBackgroundMessageHandler(async remoteMessage => {
   }
 });
 
-// 2. Notifee 백그라운드 이벤트 핸들러 (알림 동작 처리)
 notifee.onBackgroundEvent(async ({ type, detail }) => {
-  const { notification, pressAction } = detail;
-  console.log('[index] Notifee Background Event:', type, detail);
+  try {
+    const { notification, pressAction } = detail;
 
-  // 알림 클릭(PRESS) 시 처리
-  if (type === EventType.PRESS && pressAction?.id === 'default') {
-    console.log('[index] 알림 클릭됨 (백그라운드)');
-    // 사용자가 알림을 누르면 앱이 켜지면서 App.tsx의 getInitialNotification이 처리합니다.
+    // 알림이 "도착" 했을 때 (트리거 시간에 로컬 알림이 도착)
+    if (type === EventType.DELIVERED) {
+      const data = notification?.data;
+      if (data) {
+        const payload = {
+          data,
+          deliveredAt: Date.now(),
+        };
+        await AsyncStorage.setItem(PENDING_KEY, JSON.stringify(payload));
+        console.log('[BG] DELIVERED 저장 완료:', payload);
+      }
+    }
+
+    // 사용자가 알림을 클릭(press) 했을 때
+    if (type === EventType.PRESS) {
+      // (선택) PRESS 시에도 저장해 둘 수 있음
+      const data = notification?.data;
+      if (data) {
+        const payload = { data, pressedAt: Date.now(), pressed: true };
+        await AsyncStorage.setItem(PENDING_KEY, JSON.stringify(payload));
+        console.log('[BG] PRESS 저장 완료:', payload);
+      }
+    }
+  } catch (e) {
+    console.error('[BG] onBackgroundEvent error', e);
   }
 });
 
