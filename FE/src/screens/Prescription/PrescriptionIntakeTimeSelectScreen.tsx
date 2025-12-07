@@ -126,16 +126,39 @@ export default function PrescriptionIntakeTimeSelectScreen({
 
   const handleTimePeriodSelect = (period: TimePeriod) => {
     if (isLoading) return;
-    // 이미 선택된 경우 제거, 선택되지 않은 경우 추가
+    
+    // 이미 선택된 경우 제거
     if (selectedTimePeriods.includes(period)) {
       setSelectedTimePeriods(selectedTimePeriods.filter(p => p !== period));
     } else {
+      // taken 값이 있으면 개수 제한 검증
+      if (taken !== undefined && taken !== null && taken > 0) {
+        if (selectedTimePeriods.length >= taken) {
+          Alert.alert(
+            '선택 제한',
+            `복약 횟수가 ${taken}회이므로 ${taken}개의 시간대만 선택할 수 있습니다.\n\n현재 선택: ${selectedTimePeriods.length}개`
+          );
+          return;
+        }
+      }
+      // 선택되지 않은 경우 추가
       setSelectedTimePeriods([...selectedTimePeriods, period]);
     }
   };
 
   const handleNext = async () => {
     if (!isNextButtonActive) return;
+
+    // taken 값과 선택한 시간대 개수 검증
+    if (taken !== undefined && taken !== null && taken > 0) {
+      if (selectedTimePeriods.length !== taken) {
+        Alert.alert(
+          '선택 오류',
+          `복약 횟수가 ${taken}회이므로 정확히 ${taken}개의 시간대를 선택해주세요.\n\n현재 선택: ${selectedTimePeriods.length}개`
+        );
+        return;
+      }
+    }
 
     setIsLoading(true);
     try {
@@ -144,7 +167,17 @@ export default function PrescriptionIntakeTimeSelectScreen({
         .map((period) => (period === 'bedtime' ? 'night' : period))
         .join(',');
 
+      // 🔍 디버그: 요청 데이터 확인
+      console.log('[PrescriptionIntakeTimeSelectScreen] 🔍 복약 시간대 조합 수정 요청');
+      console.log('[PrescriptionIntakeTimeSelectScreen] umno:', umno);
+      console.log('[PrescriptionIntakeTimeSelectScreen] selectedTimePeriods:', selectedTimePeriods);
+      console.log('[PrescriptionIntakeTimeSelectScreen] combination:', combination);
+      console.log('[PrescriptionIntakeTimeSelectScreen] taken:', taken);
+      console.log('[PrescriptionIntakeTimeSelectScreen] 선택된 시간대 개수:', selectedTimePeriods.length);
+
       const response = await updateMedicationCombination(umno, combination);
+      
+      console.log('[PrescriptionIntakeTimeSelectScreen] ✅ 응답:', JSON.stringify(response, null, 2));
       if (response.header?.resultCode === 1000) {
         // 분석 결과 화면으로 이동
         if (navigation) {
@@ -159,10 +192,52 @@ export default function PrescriptionIntakeTimeSelectScreen({
         throw new Error(response.header?.resultMsg || '복약 시간대 조합 수정에 실패했습니다.');
       }
     } catch (error: any) {
-      console.error('복약 시간대 조합 수정 실패:', error);
+      console.error('[PrescriptionIntakeTimeSelectScreen] ❌ 복약 시간대 조합 수정 실패:', error);
+      console.error('[PrescriptionIntakeTimeSelectScreen] 에러 타입:', error.constructor.name);
+      console.error('[PrescriptionIntakeTimeSelectScreen] 에러 메시지:', error.message);
+      
+      if (error.response) {
+        console.error('[PrescriptionIntakeTimeSelectScreen] 응답 상태:', error.response.status);
+        console.error('[PrescriptionIntakeTimeSelectScreen] 응답 데이터:', JSON.stringify(error.response.data, null, 2));
+      }
+      
+      // 백엔드 에러 메시지 추출
+      let errorMessage = '복약 시간대 조합 수정 중 오류가 발생했습니다.';
+      
+      if (error.response?.data?.header?.resultMsg) {
+        errorMessage = error.response.data.header.resultMsg;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      // 500 에러인 경우 특별 처리
+      if (error.response?.status === 500) {
+        console.error('[PrescriptionIntakeTimeSelectScreen] 🚨 500 Internal Server Error');
+        
+        // 백엔드에서 발생 가능한 에러 메시지 확인
+        const backendError = error.response?.data?.message || error.response?.data?.error || '';
+        
+        if (backendError.includes('AlarmCombEntity')) {
+          errorMessage = `선택한 시간대 조합(아침, 점심, 저녁)에 해당하는 알람 조합이 데이터베이스에 없습니다.\n\n백엔드 관리자에게 문의해주세요.`;
+        } else if (backendError.includes('알림 시간이 없습니다') || backendError.includes('alarm_time_table')) {
+          errorMessage = `해당 복약 정보에 알람 시간이 설정되지 않았습니다.\n\n처방전을 다시 등록해주세요.`;
+        } else if (backendError.includes('행 개수') || backendError.includes('alarm_time_table 행 개수')) {
+          errorMessage = `알람 시간 개수와 복약 횟수가 일치하지 않습니다.\n\n처방전을 다시 등록해주세요.`;
+        } else {
+          errorMessage = `서버 내부 오류가 발생했습니다.\n\n에러 메시지: ${backendError || '알 수 없는 오류'}\n\n백엔드 로그를 확인해주세요.`;
+        }
+      }
+      
+      // taken 값과 관련된 에러인 경우 더 명확한 메시지
+      if (errorMessage.includes('활성 타입 개수') || errorMessage.includes('복약 횟수')) {
+        errorMessage = `복약 횟수(${taken || 'N/A'}회)와 선택한 시간대 개수(${selectedTimePeriods.length}개)가 일치하지 않습니다.\n\n정확히 ${taken || 'N/A'}개의 시간대를 선택해주세요.`;
+      }
+      
       Alert.alert(
         '수정 실패',
-        error.response?.data?.header?.resultMsg || error.response?.data?.message || error.message || '복약 시간대 조합 수정 중 오류가 발생했습니다.'
+        `${errorMessage}\n\n에러 코드: ${error.response?.status || 'N/A'}\n선택된 시간대: ${selectedTimePeriods.join(', ')}\n복약 횟수: ${taken || 'N/A'}회\numno: ${umno}`
       );
     } finally {
       setIsLoading(false);
@@ -236,7 +311,7 @@ export default function PrescriptionIntakeTimeSelectScreen({
           disabled={!isNextButtonActive}
         >
           {isLoading ? (
-            <ActivityIndicator color="#ffffff" size="small" />
+            <ActivityIndicator color="#545045" size="small" />
           ) : (
             <Text style={styles.nextButtonText}>다음으로</Text>
           )}
@@ -293,10 +368,10 @@ const styles = StyleSheet.create({
     position: 'relative' as any,
   },
   timeButtonSelected: {
-    backgroundColor: '#60584d',
+    backgroundColor: '#ffcc02', // 노란색으로 변경
   },
   timeButtonUnselected: {
-    backgroundColor: '#ffcc02',
+    backgroundColor: '#60584d', // 갈색으로 변경
   },
   iconContainer: {
     width: responsive(35),
@@ -320,10 +395,10 @@ const styles = StyleSheet.create({
     lineHeight: responsive(57.6),
   },
   timeButtonTextSelected: {
-    color: '#ffffff',
+    color: '#545045', // 갈색으로 변경
   },
   timeButtonTextUnselected: {
-    color: '#545045',
+    color: '#ffffff', // 흰색으로 변경
   },
   buttonContainer: {
     position: 'absolute' as any,
@@ -340,7 +415,7 @@ const styles = StyleSheet.create({
     alignItems: 'center' as any,
   },
   nextButtonActive: {
-    backgroundColor: '#60584d',
+    backgroundColor: '#ffcc02', // 노란색으로 변경
   },
   nextButtonInactive: {
     backgroundColor: '#c4bcb1',
@@ -348,7 +423,7 @@ const styles = StyleSheet.create({
   nextButtonText: {
     fontSize: responsive(27),
     fontWeight: '700' as any,
-    color: '#ffffff',
+    color: '#545045', // 갈색으로 변경
     lineHeight: responsive(32.4),
   },
 });

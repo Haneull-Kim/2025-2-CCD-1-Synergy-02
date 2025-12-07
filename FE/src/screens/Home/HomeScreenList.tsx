@@ -141,16 +141,14 @@ export default function HomeScreenList({
             <Text style={styles.dateText}>{getTodayDate()}</Text>
             <Text style={styles.greetingText}>오늘도 건강한 하루 되세요</Text>
           </View>
-          {/* 복약 기록 버튼 */}
-          {medications.length > 0 && (
-            <TouchableOpacity 
-              style={styles.recordButton} 
-              activeOpacity={0.8}
-              onPress={onMedicationRecord}
-            >
-              <Text style={styles.recordButtonText}>복약 기록</Text>
-            </TouchableOpacity>
-          )}
+          {/* 복약 기록 버튼 - 항상 표시 */}
+          <TouchableOpacity 
+            style={styles.recordButton} 
+            activeOpacity={0.8}
+            onPress={onMedicationRecord}
+          >
+            <Text style={styles.recordButtonText}>복약 기록</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Action Buttons Grid */}

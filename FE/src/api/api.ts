@@ -93,7 +93,7 @@ apiClient.interceptors.request.use(
       }
     }
 
-    // 🔥 FormData 감지 → Content-Type 삭제
+    // 🔥 FormData 감지 → Content-Type 삭제 (브라우저/RN이 자동으로 boundary 포함하여 설정)
     const isFormData =
       config.data instanceof FormData ||
       Object.prototype.toString.call(config.data) === '[object FormData]';
@@ -103,8 +103,20 @@ apiClient.interceptors.request.use(
       config.maxBodyLength = Infinity;
       config.maxContentLength = Infinity;
 
-      console.log("🔥 FormData 감지됨 → transformRequest로 처리");
+      // ⚠️ 중요: Content-Type을 삭제해야 브라우저/RN이 자동으로 multipart/form-data + boundary 설정
+      // Authorization 헤더는 유지해야 함
+      delete config.headers['Content-Type'];
+      delete config.headers['content-type'];
+
+      // ⚠️ 중요: Authorization 헤더가 제대로 설정되었는지 확인
+      if (!config.headers.Authorization && token) {
+        console.warn('⚠️ FormData 요청에서 Authorization 헤더가 없습니다. 다시 설정합니다.');
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+
+      console.log("🔥 FormData 감지됨 → Content-Type 삭제, Authorization 유지");
       console.log('최종 헤더:', JSON.stringify(config.headers, null, 2));
+      console.log('Authorization 헤더 존재:', !!config.headers.Authorization);
       return config;
     }
 
@@ -241,12 +253,10 @@ export const api = {
     const isFormData = data instanceof FormData;
     
     if (isFormData) {
+      // ⚠️ 중요: Content-Type을 설정하지 않음 (인터셉터에서 삭제하고 RN이 자동으로 설정)
+      // Authorization 헤더는 인터셉터에서 이미 설정됨
       const finalConfig: any = {
         ...config,
-        headers: {
-          ...config?.headers,
-          'content-type': 'multipart/form-data',
-        },
         transformRequest: (data: any, headers?: any) => {
           // FormData인 경우 그대로 반환 (문자열로 변환 방지)
           return data;

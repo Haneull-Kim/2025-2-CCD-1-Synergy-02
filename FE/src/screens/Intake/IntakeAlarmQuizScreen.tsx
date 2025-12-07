@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   InteractionManager,
   ActivityIndicator,
   Alert,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -24,9 +25,10 @@ interface IntakeAlarmQuizScreenProps {
   initialWrongCount?: number; // 전화에서 돌아왔을 때 3번 틀린 상태 유지
   eno?: number; // 이벤트 번호
   eventDetail?: any;
+  onBack?: () => void; // 뒤로가기 버튼 클릭 시 호출 (홈으로 이동)
 }
 
-const IntakeAlarmQuizScreen = React.memo(({ onMedicationTaken, onThreeTimesWrong, initialWrongCount = 0, eno, eventDetail }: IntakeAlarmQuizScreenProps) => {
+const IntakeAlarmQuizScreen = React.memo(({ onMedicationTaken, onThreeTimesWrong, initialWrongCount = 0, eno, eventDetail, onBack }: IntakeAlarmQuizScreenProps) => {
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [isWrong, setIsWrong] = useState(initialWrongCount >= 3);
   const [isCorrect, setIsCorrect] = useState(false);
@@ -40,6 +42,8 @@ const IntakeAlarmQuizScreen = React.memo(({ onMedicationTaken, onThreeTimesWrong
   const { width } = useWindowDimensions();
   const isTablet = width > 600;
   const MAX_WIDTH = responsive(isTablet ? 420 : 360);
+  const isMountedRef = useRef(true);
+  const SCREEN_ID = 'IntakeAlarmQuizScreen';
 
   // 이벤트 데이터 로드
   useEffect(() => {
@@ -153,6 +157,12 @@ const IntakeAlarmQuizScreen = React.memo(({ onMedicationTaken, onThreeTimesWrong
   useEffect(() => {
     if (!isLoading && eventData && isInteractionComplete) {
       const playTTS = async () => {
+        // 화면이 여전히 마운트되어 있는지 확인
+        if (!isMountedRef.current) {
+          console.log('[IntakeAlarmQuizScreen] 화면 언마운트 감지, TTS 재생 취소');
+          return;
+        }
+
         try {
           // eventData에 audioUrl 또는 audio_url이 있으면 사용, 없으면 getAIScript로 가져오기
           let audioUrl: string | null = null;
@@ -166,6 +176,13 @@ const IntakeAlarmQuizScreen = React.memo(({ onMedicationTaken, onThreeTimesWrong
             // audio_url이 없으면 getAIScript로 가져오기
             try {
               const scriptResponse = await getAIScript(eventData.umno);
+              
+              // API 응답 후에도 화면이 여전히 마운트되어 있는지 확인
+              if (!isMountedRef.current) {
+                console.log('[IntakeAlarmQuizScreen] API 응답 후 화면 언마운트 감지, TTS 재생 취소');
+                return;
+              }
+              
               if (scriptResponse.header?.resultCode === 1000 && scriptResponse.body?.audio_url) {
                 audioUrl = scriptResponse.body.audio_url;
               }
@@ -174,8 +191,14 @@ const IntakeAlarmQuizScreen = React.memo(({ onMedicationTaken, onThreeTimesWrong
             }
           }
           
+          // 재생 전 다시 한 번 확인
+          if (!isMountedRef.current) {
+            console.log('[IntakeAlarmQuizScreen] 재생 전 화면 언마운트 감지, TTS 재생 취소');
+            return;
+          }
+          
           if (audioUrl) {
-            await playBase64Audio(audioUrl);
+            await playBase64Audio(audioUrl, undefined, SCREEN_ID, isMountedRef);
           }
         } catch (error) {
           console.error('[IntakeAlarmQuizScreen] TTS 재생 실패:', error);
@@ -184,13 +207,15 @@ const IntakeAlarmQuizScreen = React.memo(({ onMedicationTaken, onThreeTimesWrong
       
       // 약간의 지연 후 TTS 재생 (화면 렌더링 완료 후)
       const timer = setTimeout(() => {
-        playTTS();
+        if (isMountedRef.current) {
+          playTTS();
+        }
       }, 500);
       
       return () => {
         clearTimeout(timer);
         // 화면을 이탈할 때만 TTS 종료
-        stopAudio();
+        stopAudio(SCREEN_ID);
       };
     }
   }, [isLoading, eventData, isInteractionComplete]);
@@ -198,9 +223,23 @@ const IntakeAlarmQuizScreen = React.memo(({ onMedicationTaken, onThreeTimesWrong
   // 컴포넌트 언마운트 시 TTS 종료 (화면을 벗어날 때)
   useEffect(() => {
     return () => {
-      stopAudio();
+      isMountedRef.current = false;
+      stopAudio(SCREEN_ID);
     };
   }, []);
+
+  // 뒤로가기 버튼 처리 (알림 화면에서 뒤로가기 누르면 홈으로 이동)
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      console.log('[IntakeAlarmQuizScreen] 뒤로가기 버튼 클릭 - 홈으로 이동');
+      if (onBack) {
+        onBack();
+      }
+      return true; // 기본 동작 방지 (앱 종료 방지)
+    });
+
+    return () => backHandler.remove();
+  }, [onBack]);
 
   const handleSelectAnswer = useCallback((answerId: string) => {
     if (!correctAnswerId) return;
@@ -289,11 +328,12 @@ const IntakeAlarmQuizScreen = React.memo(({ onMedicationTaken, onThreeTimesWrong
   }, [isCorrect, isSubmitting, eventData, onMedicationTaken]);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
       <StatusBar barStyle="dark-content" />
       <PinchZoomScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        style={styles.scrollView}
       >
         {isLoading ? (
           <View style={styles.loadingContainer}>
@@ -457,9 +497,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
+  scrollView: {
+    flex: 1,
+  },
   scrollContent: {
     paddingHorizontal: responsive(16),
-    paddingBottom: responsive(100),
+    paddingBottom: responsive(120), // 버튼 높이 + 여백
     alignItems: 'center' as any,
   },
   pageWrapper: {
@@ -581,7 +624,7 @@ const styles = StyleSheet.create({
   answerButton: {
     width: '48%',
     minHeight: responsive(56),
-    backgroundColor: '#FFCC02',
+    backgroundColor: '#FFCC02', // 원래 노란색으로 복원
     borderRadius: responsive(108),
     justifyContent: 'center' as any,
     alignItems: 'stretch' as any,
@@ -589,7 +632,7 @@ const styles = StyleSheet.create({
     paddingVertical: responsive(10),
   },
   answerButtonSelected: {
-    backgroundColor: '#60584D',
+    backgroundColor: '#60584D', // 원래 갈색으로 복원
   },
   answerButtonTextContainer: {
     width: '100%',
@@ -601,7 +644,7 @@ const styles = StyleSheet.create({
   answerButtonText: {
     fontWeight: '700' as '700',
     fontSize: responsive(24),
-    color: '#5E5B50',
+    color: '#5E5B50', // 원래 갈색으로 복원
     lineHeight: responsive(28.8),
     textAlign: 'center' as any,
     includeFontPadding: false,
@@ -609,14 +652,16 @@ const styles = StyleSheet.create({
     alignSelf: 'center' as any,
   },
   answerButtonTextSelected: {
-    color: '#FFFFFF',
+    color: '#FFFFFF', // 원래 흰색으로 복원
   },
   submitButtonContainer: {
     position: 'absolute',
     left: responsive(16),
     right: responsive(16),
-    bottom: responsive(36),
+    bottom: 0, // SafeAreaView의 bottom edge 사용
+    paddingBottom: responsive(20), // 하단 여백
     alignItems: 'center' as any,
+    backgroundColor: '#F9FAFB', // 배경색 추가로 스크롤 시 버튼이 보이도록
   },
   submitButton: {
     width: '100%',
@@ -627,7 +672,7 @@ const styles = StyleSheet.create({
     alignItems: 'center' as any,
   },
   submitButtonActive: {
-    backgroundColor: '#60584d',
+    backgroundColor: '#60584d', // 원래 갈색으로 복원
   },
   submitButtonInactive: {
     backgroundColor: '#C4BCB1',
@@ -635,7 +680,7 @@ const styles = StyleSheet.create({
   submitButtonText: {
     fontWeight: '700' as '700',
     fontSize: responsive(27),
-    color: '#FFFFFF',
+    color: '#FFFFFF', // 원래 흰색으로 복원
     lineHeight: responsive(32.4),
   },
   // 정답 UI 스타일

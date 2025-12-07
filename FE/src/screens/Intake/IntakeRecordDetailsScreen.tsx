@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,8 @@ import Svg, { Circle } from 'react-native-svg';
 import responsive from '../../utils/responsive';
 import { getReportDetail } from '../../api/reportApi';
 import { getMedicineImageSource } from '../../utils/medicineImageMap';
+import { generateTts } from '../../api/ttsApi';
+import { playBase64Audio, stopAudio } from '../../utils/ttsPlayer';
 
 
 // 원형 진행률 그래프 컴포넌트
@@ -74,6 +76,9 @@ const IntakeRecordDetailsScreen = React.memo(({ onExit, rno }: IntakeRecordDetai
   const isTablet = width > 600;
   const MAX_WIDTH = responsive(isTablet ? 420 : 360);
   const insets = useSafeAreaInsets();
+  const [isTtsPlaying, setIsTtsPlaying] = useState(false);
+  const isMountedRef = useRef(true);
+  const SCREEN_ID = 'IntakeRecordDetailsScreen';
 
   // 리포트 상세 데이터 로드
   useEffect(() => {
@@ -107,6 +112,82 @@ const IntakeRecordDetailsScreen = React.memo(({ onExit, rno }: IntakeRecordDetai
     });
 
     return () => interactionPromise.cancel();
+  }, []);
+
+  // 총평 TTS 재생 - 화면이 준비되고 총평 데이터가 로드되면 재생
+  useEffect(() => {
+    if (!isLoading && reportData?.description && reportData.description.trim() !== '' && isInteractionComplete) {
+      const playTTS = async () => {
+        // 화면이 여전히 마운트되어 있는지 확인
+        if (!isMountedRef.current) {
+          console.log('[IntakeRecordDetailsScreen] 화면 언마운트 감지, TTS 재생 취소');
+          return;
+        }
+
+        try {
+          setIsTtsPlaying(true);
+          console.log('[IntakeRecordDetailsScreen] 총평 TTS 생성 시작');
+          
+          // 총평 텍스트로 TTS 생성
+          const ttsResponse = await generateTts(reportData.description);
+          
+          // API 응답 후에도 화면이 여전히 마운트되어 있는지 확인
+          if (!isMountedRef.current) {
+            console.log('[IntakeRecordDetailsScreen] API 응답 후 화면 언마운트 감지, TTS 재생 취소');
+            setIsTtsPlaying(false);
+            return;
+          }
+          
+          if (ttsResponse.header?.resultCode === 1000 && ttsResponse.body?.audio_base64) {
+            console.log('[IntakeRecordDetailsScreen] 총평 TTS 생성 성공, 재생 시작');
+            await playBase64Audio(
+              ttsResponse.body.audio_base64, 
+              () => {
+                if (isMountedRef.current) {
+                  console.log('[IntakeRecordDetailsScreen] 총평 TTS 재생 완료');
+                  setIsTtsPlaying(false);
+                }
+              },
+              SCREEN_ID,
+              isMountedRef
+            );
+          } else {
+            console.warn('[IntakeRecordDetailsScreen] 총평 TTS 생성 실패:', ttsResponse.header?.resultMsg);
+            if (isMountedRef.current) {
+              setIsTtsPlaying(false);
+            }
+          }
+        } catch (error) {
+          console.error('[IntakeRecordDetailsScreen] 총평 TTS 재생 실패:', error);
+          if (isMountedRef.current) {
+            setIsTtsPlaying(false);
+          }
+        }
+      };
+      
+      // 약간의 지연 후 TTS 재생 (화면 렌더링 완료 후)
+      const timer = setTimeout(() => {
+        if (isMountedRef.current) {
+          playTTS();
+        }
+      }, 500);
+      
+      return () => {
+        clearTimeout(timer);
+        // 화면을 이탈할 때만 TTS 종료
+        stopAudio(SCREEN_ID);
+        setIsTtsPlaying(false);
+      };
+    }
+  }, [isLoading, reportData?.description, isInteractionComplete]);
+
+  // 컴포넌트 언마운트 시 TTS 종료 (화면을 벗어날 때)
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      stopAudio(SCREEN_ID);
+      setIsTtsPlaying(false);
+    };
   }, []);
 
   const handleExit = useCallback(() => {
