@@ -2,7 +2,7 @@ name: Deploy Spring Boot App to EC2
 
 on:
   push:
-    branches: [ develop ]
+    branches: [ main ]
     paths:
       - 'BE/**'
 
