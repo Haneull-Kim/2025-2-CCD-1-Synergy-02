@@ -57,7 +57,7 @@
 
 ## 4. 실행 화면
 
-| 메인 홈 화면 | 처방전 분석 완료 (OCR) | 복약 알림 | 복약 리포트 |
+| 메인 홈 화면 | 복약 상세(TTS) | 복약 알림 | 복약 리포트 |
 | :---: | :---: | :---: | :---: |
 | <img src="./Img/Home.png" width="200" /> | <img src="./Img/OcrDetail.png" width="200" /> | <img src="./Img/Alarm.png" width="200" /> | <img src="./Img/Report1.png" width="200" /> <img src="./Img/Report2.png" width="200" /> |
 
