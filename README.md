@@ -5,10 +5,10 @@
 
 | 구분 | 성명   | 역할                | 소속학과      | 연계전공        | 이메일 |
 |------|--------|---------------------|---------------|-----------------|--------|
-| 팀장 | 김하늘 | 프론트엔드, 백엔드 개발 | 통계학과      | 융합소프트웨어   | [lkylky020607@gmail.com](mailto:lkylky020607@gmail.com) |
-| 팀원 | 김희진 | 프론트엔드 개발        | 경영정보학과   | 융합소프트웨어   | [kimheejin@dgu.ac.kr](mailto:kimheejin@dgu.ac.kr) |
-| 팀원 | 양윤규 | 백엔드 개발           | 통계학과      | 데이터사이언스   | [yykyyk0913@naver.com](mailto:yykyyk0913@naver.com) |
-| 팀원 | 황서영 | 백엔드 개발           | 통계학과      | 융합소프트웨어   | [hsy5275@naver.com](mailto:hsy5275@naver.com) |
+| 팀장 | 조혜림 | 프론트엔드 개발        | 융합보안학과      | 융합소프트웨어   | [johyerim@dgu.ac.kr](mailto:johyerim@dgu.ac.kr) |
+| 팀원 | 김하늘 | 프론트엔드, 백엔드 개발  | 통계학과         | 융합소프트웨어   | [lkylky020607@gmail.com](mailto:lkylky020607@gmail.com) |
+| 팀원 | 박민혁 | 프론트엔드 개발        | 산업시스템공학과   | 융합소프트웨어   | [mhptx7365@gmail.com](mailto:mhptx7365@gmail.com) |
+| 팀원 | 황서영 | 백엔드 개발           | 통계학과         | 융합소프트웨어   | [seoyeonghwang@dgu.ac.kr](mailto:seoyeonghwang@dgu.ac.kr) |
 
 ## 1. 프로젝트 소개
 
