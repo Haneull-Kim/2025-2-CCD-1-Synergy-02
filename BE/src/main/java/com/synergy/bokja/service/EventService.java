@@ -59,6 +59,12 @@ public class EventService {
         EventEntity event = eventRepository.findById(eno)
                 .orElseThrow(() -> new IllegalArgumentException("해당 이벤트를 찾을 수 없습니다. eno: " + eno));
 
+        if (event.getStatus() == EventStatus.완료) {
+            System.out.println("이미 완료된 이벤트입니다. 중복 처리를 건너뜁니다. eno: " + eno);
+            // 이미 처리가 끝났으므로 saveCycle을 올리지 않고 바로 성공 응답 반환
+            return new updateEventStatusResponseDTO(event.getEno());
+        }
+
         event.setStatus(EventStatus.완료);
         event.setUpdatedAt(LocalDateTime.now());
 
